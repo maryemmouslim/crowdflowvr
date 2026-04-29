@@ -1,0 +1,11 @@
+{
+    "name": "Maryemmouslim9.Comunityxroculus.Tests",
+    "references": [
+        "Maryemmouslim9.Comunityxroculus"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": []
+}

@@ -1,0 +1,14 @@
+{
+    "name": "Maryemmouslim9.Comunityxroculus.Editor.Tests",
+    "references": [
+        "Maryemmouslim9.Comunityxroculus.Editor",
+        "Maryemmouslim9.Comunityxroculus"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}

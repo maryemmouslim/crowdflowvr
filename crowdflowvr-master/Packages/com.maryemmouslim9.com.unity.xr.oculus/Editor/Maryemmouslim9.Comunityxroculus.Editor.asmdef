@@ -1,0 +1,10 @@
+{
+    "name": "Maryemmouslim9.Comunityxroculus.Editor",
+    "references": [
+      "Maryemmouslim9.Comunityxroculus"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}
