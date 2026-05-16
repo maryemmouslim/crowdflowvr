@@ -32,7 +32,7 @@ while True:
         pred = model.predict(X)[0]
         danger = pred == -1
         
-        response = json.dumps({'danger': danger, 'nb': nb, 'mu': round(mu,2)})
+        response = json.dumps({'danger': bool(danger), 'nb': int(nb), 'mu': round(float(mu),2)})
         sock.sendto(response.encode(), addr)
         
         if danger:
