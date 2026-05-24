@@ -1,4 +1,3 @@
-// Assets/Scripts/ML/MLClient.cs
 using UnityEngine;
 using System.Net.Sockets;
 using System.Text;
@@ -6,44 +5,65 @@ using System.Collections;
 
 public class MLClient : MonoBehaviour
 {
-    [Header("Serveur Python")]
-    public string serverIP = "127.0.0.1";
-    public int serverPort = 5005;
-    public float interval = 0.2f;
+    public string mlServerIP = "127.0.0.1";
+    public int mlServerPort = 5005;
+    public float sendInterval = 0.5f;
 
-    [HideInInspector] public bool dangerZoneDetected = false;
-    [HideInInspector] public float predictedDensity = 0f;
+    [HideInInspector] public bool dangerDetected = false;
+    [HideInInspector] public float density = 0f;
 
     private UdpClient udp;
 
-    void Start() 
-    { 
-        udp = new UdpClient(); 
-        StartCoroutine(SendLoop()); 
+    void Start()
+    {
+        udp = new UdpClient();
+        StartCoroutine(SendLoop());
     }
 
     IEnumerator SendLoop()
     {
         while (true)
         {
-            try { SendAndReceive(); }
-            catch (System.Exception e) 
-            { Debug.LogWarning("ML: " + e.Message); }
-            yield return new WaitForSeconds(interval);
+            SendData();
+            yield return new WaitForSeconds(sendInterval);
         }
     }
 
-    void SendAndReceive()
+    void SendData()
     {
-        // Pour l'instant on envoie des données de test
-        // Imane connectera les vrais agents plus tard
-        var sb = new StringBuilder("{\"agents\":[");
-        sb.Append("{\"x\":0,\"z\":0,\"spd\":1.4}");
+        CrowdAgent[] agents = FindObjectsOfType<CrowdAgent>();
+        var sb = new StringBuilder();
+        sb.Append("{\"agents\":[");
+        foreach (var a in agents)
+        {
+            float spd = a.GetSpeed();
+            sb.Append($"{{\"x\":{a.transform.position.x:F2},\"z\":{a.transform.position.z:F2},\"spd\":{spd:F2}}},");
+        }
         sb.Append("]}");
 
         byte[] data = Encoding.UTF8.GetBytes(sb.ToString());
-        udp.Send(data, data.Length, serverIP, serverPort);
+        udp.Send(data, data.Length, mlServerIP, mlServerPort);
+
+        udp.Client.ReceiveTimeout = 200;
+        try
+        {
+            var ep = new System.Net.IPEndPoint(System.Net.IPAddress.Any, 0);
+            byte[] response = udp.Receive(ref ep);
+            var json = Encoding.UTF8.GetString(response);
+            var result = JsonUtility.FromJson<MLResponse>(json);
+            dangerDetected = result.danger;
+            density = result.density;
+        }
+        catch { }
     }
 
-    void OnDestroy() => udp?.Close();
+    void OnDestroy() { udp?.Close(); }
+}
+
+[System.Serializable]
+public class MLResponse
+{
+    public bool danger;
+    public float density;
+    public float score;
 }
