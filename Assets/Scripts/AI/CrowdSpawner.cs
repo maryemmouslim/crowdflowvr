@@ -1,63 +1,140 @@
-using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.InputSystem;
 
 public class CrowdSpawner : MonoBehaviour
 {
+    [Header("Prefab et points de navigation")]
     public GameObject agentPrefab;
     public Transform[] spawnPoints;
     public Transform[] exitPoints;
-    public int maxAgents = 50;
+    public Transform emergencyExit;
+
+    [Header("Generation")]
+    public int maxAgents = 10;
     public float spawnRate = 1f;
 
-    private int activeAgents = 0;
-    private MLClient mlClient;
+    [Header("Test local uniquement")]
+    public Key evacuationTestKey = Key.E;
 
-    void Start()
+    private readonly List<CrowdAgent> agents = new List<CrowdAgent>();
+    private MLClient mlClient;
+    private bool evacuationTriggered = false;
+    private bool lastDangerState = false;
+
+    private void Start()
     {
         mlClient = FindObjectOfType<MLClient>();
+
         StartCoroutine(SpawnLoop());
         StartCoroutine(CheckDanger());
     }
 
-    IEnumerator SpawnLoop()
+    private void Update()
     {
-        while (activeAgents < maxAgents)
+        if (Keyboard.current != null &&
+            Keyboard.current[evacuationTestKey].wasPressedThisFrame)
         {
-            SpawnAgent();
-            yield return new WaitForSeconds(1f / spawnRate);
+            TriggerEvacuation();
         }
     }
 
-    void SpawnAgent()
+    private IEnumerator SpawnLoop()
     {
-        if (spawnPoints == null || spawnPoints.Length == 0) return;
-        Transform sp = spawnPoints[Random.Range(0, spawnPoints.Length)];
-        Vector3 pos = sp.position + new Vector3(Random.Range(-1f, 1f), 0, Random.Range(-1f, 1f));
-        GameObject go = Instantiate(agentPrefab, pos, Quaternion.identity);
-        CrowdAgent agent = go.GetComponent<CrowdAgent>();
-        agent.exitPoints = exitPoints;
-        activeAgents++;
+        while (agents.Count < maxAgents)
+        {
+            SpawnAgent();
+
+            float safeRate = Mathf.Max(0.1f, spawnRate);
+            yield return new WaitForSeconds(1f / safeRate);
+        }
     }
 
-    IEnumerator CheckDanger()
+    private void SpawnAgent()
+    {
+        if (agentPrefab == null)
+        {
+            Debug.LogError("CrowdSpawner : Agent Prefab non renseigne.");
+            return;
+        }
+
+        if (spawnPoints == null || spawnPoints.Length == 0)
+        {
+            Debug.LogError("CrowdSpawner : aucun Spawn Point renseigne.");
+            return;
+        }
+
+        Transform selectedSpawn = spawnPoints[Random.Range(0, spawnPoints.Length)];
+
+        if (selectedSpawn == null)
+            return;
+
+        Vector3 requestedPosition = selectedSpawn.position +
+            new Vector3(Random.Range(-0.6f, 0.6f), 0f, Random.Range(-0.6f, 0.6f));
+
+        if (!NavMesh.SamplePosition(requestedPosition, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+        {
+            Debug.LogWarning("CrowdSpawner : aucun NavMesh proche du point de generation.");
+            return;
+        }
+
+        GameObject createdObject = Instantiate(agentPrefab, hit.position, Quaternion.identity);
+        CrowdAgent agent = createdObject.GetComponent<CrowdAgent>();
+
+        if (agent == null)
+        {
+            Debug.LogError("CrowdSpawner : le prefab ne contient pas CrowdAgent.");
+            Destroy(createdObject);
+            return;
+        }
+
+        agent.exitPoints = exitPoints;
+        agent.emergencyExit = emergencyExit;
+
+        if (evacuationTriggered)
+            agent.SetState(CrowdAgent.AgentState.Evacuation);
+        else
+            agent.SetState(CrowdAgent.AgentState.Normal);
+
+        agents.Add(agent);
+    }
+
+    private IEnumerator CheckDanger()
     {
         while (true)
         {
-            if (mlClient != null && mlClient.dangerDetected)
+            if (!evacuationTriggered)
             {
-                // Mettre tous les agents en panique
-                CrowdAgent[] agents = FindObjectsOfType<CrowdAgent>();
-                foreach (var a in agents)
-                    a.SetPanic(true);
-                Debug.Log("DANGER detecte par ML - agents en panique !");
+                bool danger = mlClient != null && mlClient.dangerDetected;
+
+                foreach (CrowdAgent agent in agents)
+                {
+                    if (agent != null)
+                        agent.SetPanic(danger);
+                }
+
+                if (danger && !lastDangerState)
+                    Debug.Log("DANGER detecte par ML : agents en panique.");
+
+                lastDangerState = danger;
             }
-            else
-            {
-                CrowdAgent[] agents = FindObjectsOfType<CrowdAgent>();
-                foreach (var a in agents)
-                    a.SetPanic(false);
-            }
+
             yield return new WaitForSeconds(1f);
         }
+    }
+
+    public void TriggerEvacuation()
+    {
+        evacuationTriggered = true;
+
+        foreach (CrowdAgent agent in agents)
+        {
+            if (agent != null)
+                agent.SetState(CrowdAgent.AgentState.Evacuation);
+        }
+
+        Debug.Log("EVACUATION declenchee : tous les agents vont vers la sortie d'urgence.");
     }
 }
