@@ -24,25 +24,20 @@ public class MLClient : MonoBehaviour
     {
         while (true)
         {
-            try { SendData(); }
-            catch (System.Exception e) { Debug.LogWarning("ML: " + e.Message); }
+            SendData();
             yield return new WaitForSeconds(sendInterval);
         }
     }
 
     void SendData()
     {
-        MonoBehaviour[] agents = FindObjectsOfType<PietonController>();
+        CrowdAgent[] agents = FindObjectsOfType<CrowdAgent>();
         var sb = new StringBuilder();
         sb.Append("{\"agents\":[");
-        bool first = true;
         foreach (var a in agents)
         {
-            UnityEngine.AI.NavMeshAgent nav = a.GetComponent<UnityEngine.AI.NavMeshAgent>();
-            float spd = nav != null ? nav.velocity.magnitude : 0f;
-            if (!first) sb.Append(",");
-            sb.Append($"{{\"x\":{a.transform.position.x:F2},\"z\":{a.transform.position.z:F2},\"spd\":{spd:F2}}}");
-            first = false;
+            float spd = a.GetSpeed();
+            sb.Append($"{{\"x\":{a.transform.position.x:F2},\"z\":{a.transform.position.z:F2},\"spd\":{spd:F2}}},");
         }
         sb.Append("]}");
 
